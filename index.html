@@ -17,7 +17,7 @@
 <body>
     <div class="card">
         <h2>Strict H.264 MP4 Generator</h2>
-        <p>Generates a 3.82-second video (Red screen for 2.2s, Blue screen for 1.62s at 30 FPS) strictly encoded using <b>libx264 (H.264)</b> via WebAssembly.</p>
+        <p>Generates a 3.82-second video (Red screen for 2.2s, Blue screen for 1.62s at 30 FPS) encoded using <b>libx264 (H.264)</b>.</p>
         
         <div>
             <button onclick="generateH264(false)">Download Valid H.264 MP4</button>
@@ -30,20 +30,22 @@
     <script>
         async function generateH264(shouldCorrupt) {
             const statusEl = document.getElementById('status');
-            statusEl.innerText = "Loading FFmpeg WebAssembly core...";
+            statusEl.innerText = "Loading FFmpeg engine...";
             
             const { FFmpeg } = FFmpegWASM;
+            const { toBlobURL } = FFmpegUtil;
             const ffmpeg = new FFmpeg();
             
-            // Load core from reliable CDN
+            const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+            
+            // Use toBlobURL to fetch files and wrap them locally, avoiding cross-origin worker security blocks
             await ffmpeg.load({
-                coreURL: "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js",
-                wasmURL: "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.wasm",
+                coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+                wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
             });
 
-            statusEl.innerText = "Encoding video strictly using libx264 (H.264)...";
+            statusEl.innerText = "Encoding video strictly using libx264 (H.264)... Please wait.";
 
-            // Run FFmpeg command to build exact color-switch sequence
             await ffmpeg.exec([
                 '-f', 'lavfi', '-i', 'color=c=red:s=640x480:r=30:d=2.2',
                 '-f', 'lavfi', '-i', 'color=c=blue:s=640x480:r=30:d=1.62',
@@ -58,7 +60,6 @@
             let data = await ffmpeg.readFile('output.mp4');
 
             if (shouldCorrupt) {
-                // Truncate bytes to simulate a malformed/cut-off file stream
                 data = data.slice(0, Math.floor(data.byteLength * 0.2));
                 statusEl.innerText = "Generated Truncated/Malformed H.264 MP4!";
             } else {
