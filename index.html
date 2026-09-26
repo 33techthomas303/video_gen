@@ -3,10 +3,10 @@
 <head>
     <meta charset="utf-8">
     <title>Strict H.264 MP4 Generator</title>
-    <!-- Load single-threaded FFmpeg package to completely avoid web worker cross-origin errors -->
+    <!-- Include both FFmpeg core and utility packages -->
     <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
-    <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/ffmpeg.js"></script>
-    <!-- Add empty favicon link to silence the 404 error -->
+    <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
+    <!-- Silence favicon 404 error -->
     <link rel="icon" href="data:,">
     <style>
         body { font-family: sans-serif; margin: 40px; background: #f4f4f9; color: #333; }
@@ -38,7 +38,7 @@
             const { FFmpeg } = FFmpegWASM;
             const ffmpeg = new FFmpeg();
             
-            // Point to the single-threaded core distribution which runs on the main thread (no workers)
+            // Using the single-threaded core distribution compatible with GitHub Pages hosting
             await ffmpeg.load({
                 coreURL: "https://unpkg.com/@ffmpeg/core-st@0.12.6/dist/umd/ffmpeg-core.js",
                 wasmURL: "https://unpkg.com/@ffmpeg/core-st@0.12.6/dist/umd/ffmpeg-core.wasm",
