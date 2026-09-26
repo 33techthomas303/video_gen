@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Strict H.264 MP4 Generator</title>
+    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
+    <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/ffmpeg.js"></script>
+    <style>
+        body { font-family: sans-serif; margin: 40px; background: #f4f4f9; color: #333; }
+        .card { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); max-width: 600px; }
+        button { padding: 12px 24px; font-size: 16px; margin: 5px; cursor: pointer; border: none; border-radius: 4px; background: #0066cc; color: white; }
+        button.corrupt { background: #cc3333; }
+        button:hover { opacity: 0.9; }
+        #status { font-weight: bold; color: #0066cc; margin-top: 20px; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>Strict H.264 MP4 Generator</h2>
+        <p>Generates a 3.82-second video (Red screen for 2.2s, Blue screen for 1.62s at 30 FPS) strictly encoded using <b>libx264 (H.264)</b> via WebAssembly.</p>
+        
+        <div>
+            <button onclick="generateH264(false)">Download Valid H.264 MP4</button>
+            <button class="corrupt" onclick="generateH264(true)">Download Truncated/Corrupted H.264 MP4</button>
+        </div>
+        
+        <div id="status">Click a button above to start...</div>
+    </div>
+
+    <script>
+        async function generateH264(shouldCorrupt) {
+            const statusEl = document.getElementById('status');
+            statusEl.innerText = "Loading FFmpeg WebAssembly core...";
+            
+            const { FFmpeg } = FFmpegWASM;
+            const ffmpeg = new FFmpeg();
+            
+            // Load core from reliable CDN
+            await ffmpeg.load({
+                coreURL: "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js",
+                wasmURL: "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.wasm",
+            });
+
+            statusEl.innerText = "Encoding video strictly using libx264 (H.264)...";
+
+            // Run FFmpeg command to build exact color-switch sequence
+            await ffmpeg.exec([
+                '-f', 'lavfi', '-i', 'color=c=red:s=640x480:r=30:d=2.2',
+                '-f', 'lavfi', '-i', 'color=c=blue:s=640x480:r=30:d=1.62',
+                '-filter_complex', '[0:v][1:v]concat=n=2:v=1:a=0[v]',
+                '-map', '[v]',
+                '-c:v', 'libx264',
+                '-pix_fmt', 'yuv420p',
+                '-preset', 'ultrafast',
+                'output.mp4'
+            ]);
+
+            let data = await ffmpeg.readFile('output.mp4');
+
+            if (shouldCorrupt) {
+                // Truncate bytes to simulate a malformed/cut-off file stream
+                data = data.slice(0, Math.floor(data.byteLength * 0.2));
+                statusEl.innerText = "Generated Truncated/Malformed H.264 MP4!";
+            } else {
+                statusEl.innerText = "Generated Valid H.264 MP4!";
+            }
+
+            const blob = new Blob([data.buffer], { type: 'video/mp4' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = shouldCorrupt ? 'h264_corrupted.mp4' : 'h264_valid.mp4';
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => {
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, 100);
+        }
+    </script>
+</body>
+</html>
