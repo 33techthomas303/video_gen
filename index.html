@@ -3,10 +3,6 @@
 <head>
     <meta charset="utf-8">
     <title>Strict H.264 MP4 Generator</title>
-    <!-- Include both FFmpeg core and utility packages -->
-    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
-    <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
-    <!-- Silence favicon 404 error -->
     <link rel="icon" href="data:,">
     <style>
         body { font-family: sans-serif; margin: 40px; background: #f4f4f9; color: #333; }
@@ -30,53 +26,59 @@
         <div id="status">Click a button above to start...</div>
     </div>
 
+    <!-- Load official FFmpeg WebAssembly core script directly -->
+    <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/core-st@0.12.6/dist/umd/ffmpeg-core.js"></script>
+
     <script>
         async function generateH264(shouldCorrupt) {
             const statusEl = document.getElementById('status');
-            statusEl.innerText = "Loading single-threaded FFmpeg core...";
-            
-            const { FFmpeg } = FFmpegWASM;
-            const ffmpeg = new FFmpeg();
-            
-            // Using the single-threaded core distribution compatible with GitHub Pages hosting
-            await ffmpeg.load({
-                coreURL: "https://unpkg.com/@ffmpeg/core-st@0.12.6/dist/umd/ffmpeg-core.js",
-                wasmURL: "https://unpkg.com/@ffmpeg/core-st@0.12.6/dist/umd/ffmpeg-core.wasm",
-            });
+            statusEl.innerText = "Initializing FFmpeg core...";
 
-            statusEl.innerText = "Encoding video strictly using libx264 (H.264)... Please wait a moment.";
+            try {
+                // Initialize the direct single-threaded module
+                const ffmpeg = await createFFmpegCore({
+                    locateFile: (path) => `https://cdn.jsdelivr.net/npm/@ffmpeg/core-st@0.12.6/dist/umd/${path}`
+                });
 
-            await ffmpeg.exec([
-                '-f', 'lavfi', '-i', 'color=c=red:s=640x480:r=30:d=2.2',
-                '-f', 'lavfi', '-i', 'color=c=blue:s=640x480:r=30:d=1.62',
-                '-filter_complex', '[0:v][1:v]concat=n=2:v=1:a=0[v]',
-                '-map', '[v]',
-                '-c:v', 'libx264',
-                '-pix_fmt', 'yuv420p',
-                '-preset', 'ultrafast',
-                'output.mp4'
-            ]);
+                statusEl.innerText = "Encoding video strictly using libx264 (H.264)... Please wait.";
 
-            let data = await ffmpeg.readFile('output.mp4');
+                // Run exact H.264 command
+                ffmpeg.exec(
+                    '-f', 'lavfi', '-i', 'color=c=red:s=640x480:r=30:d=2.2',
+                    '-f', 'lavfi', '-i', 'color=c=blue:s=640x480:r=30:d=1.62',
+                    '-filter_complex', '[0:v][1:v]concat=n=2:v=1:a=0[v]',
+                    '-map', '[v]',
+                    '-c:v', 'libx264',
+                    '-pix_fmt', 'yuv420p',
+                    '-preset', 'ultrafast',
+                    'output.mp4'
+                );
 
-            if (shouldCorrupt) {
-                data = data.slice(0, Math.floor(data.byteLength * 0.2));
-                statusEl.innerText = "Generated Truncated/Malformed H.264 MP4!";
-            } else {
-                statusEl.innerText = "Generated Valid H.264 MP4!";
+                let data = ffmpeg.FS('readFile', 'output.mp4');
+
+                if (shouldCorrupt) {
+                    data = data.slice(0, Math.floor(data.byteLength * 0.2));
+                    statusEl.innerText = "Generated Truncated/Malformed H.264 MP4!";
+                } else {
+                    statusEl.innerText = "Generated Valid H.264 MP4!";
+                }
+
+                const blob = new Blob([data.buffer], { type: 'video/mp4' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = shouldCorrupt ? 'h264_corrupted.mp4' : 'h264_valid.mp4';
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }, 100);
+
+            } catch (err) {
+                statusEl.innerText = "Error: " + err.message;
+                console.error(err);
             }
-
-            const blob = new Blob([data.buffer], { type: 'video/mp4' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = shouldCorrupt ? 'h264_corrupted.mp4' : 'h264_valid.mp4';
-            document.body.appendChild(a);
-            a.click();
-            setTimeout(() => {
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            }, 100);
         }
     </script>
 </body>
